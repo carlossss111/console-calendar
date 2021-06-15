@@ -1,0 +1,12 @@
+#editor
+.vscode/
+
+#binaries & preprocessing
+*.o
+*.out
+
+#keys
+authkey.txt
+
+#misc
+exampleoutput.txt

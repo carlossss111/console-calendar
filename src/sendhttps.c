@@ -4,6 +4,8 @@
  
 #include <curl/curl.h>
 
+#define MAX_AUTHKEY_LENGTH 4096
+
 /*memory structure to write
 * HTTP response into.
 */
@@ -88,18 +90,51 @@ char* httpsGET(char* myURL, int numOfMyHeaders, char* myHeaders[])
 	return response.memory;
 }
 
+/*Reads the "authkey.txt" file.
+* (returned string needs freeing)
+*/
+char* readKey(char* path){
+	FILE* fp; 
+	char* buffer = ""; 
+
+	/*open file*/
+	if(!(fp = fopen(path,"r"))){
+		fprintf(stderr, "err ln%d: cannot open authkey file.\n", __LINE__);
+		exit(EXIT_FAILURE);
+	}
+
+	/*read file*/
+	buffer = (char *) malloc(MAX_AUTHKEY_LENGTH * sizeof(char));
+	buffer = fgets(buffer, MAX_AUTHKEY_LENGTH, fp);
+	buffer = (char *) realloc(buffer, strlen(buffer) * sizeof(char));
+
+	fclose(fp);
+	return buffer;
+}
+
 /*
-* Tests the function
+* Tests the functions
 */
 int main(int argc, char** argv){
-	char* myResponse;
-	char* myHeaders[1];
-	char* myURL = "https://graph.microsoft.com/v1.0/me/";
+	char *myResponse, *myHeaders[2], *authkey;
+	char *myURL = "https://graph.microsoft.com/v1.0/me/";
 
+	/*get key from file*/
+	authkey = readKey("authkey.txt");
+
+	/*specify headers*/
 	myHeaders[0] = "Host: graph.microsoft.com";
+	myHeaders[1] = (char *) malloc(strlen("Authorization: ") + strlen(authkey) * sizeof(char));
+    sprintf(myHeaders[1],"Authorization: %s",authkey);
 	
-	myResponse = httpsGET(myURL, 1, myHeaders);
+	/*send HTTP GET request and print response*/
+	myResponse = httpsGET(myURL, 2, myHeaders);
 	printf("%s\n",myResponse);
+
+	/*frees*/
 	free(myResponse);
+	free(myHeaders[1]);
+	free(authkey);
+
 	return 0;
 }

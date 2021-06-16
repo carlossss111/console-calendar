@@ -4,6 +4,8 @@
  
 #include <curl/curl.h>
 
+#include "sendhttps.h"
+
 #define MAX_AUTHKEY_LENGTH 4096
 
 /*memory structure to write

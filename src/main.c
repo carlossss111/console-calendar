@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "sendhttps.h"
 #include "jsmn.h"
@@ -17,50 +18,48 @@ static int jsoneq(const char *entireJson, jsmntok_t token, const char *compariso
 }
 
 /*return number of calendar events from a given JSON*/
-int numEvents(char* jsonString){
-	int totalTokens = -1;
+int numOfEvents(char *jsonString, jsmntok_t *tokenArr, int totalTokens){
 	int i = 0;
-	int result = -1;
-	jsmn_parser parser;
-	jsmntok_t *tokenArr;
-	
-	/*initialise parser and get number of tokens*/
-	jsmn_init(&parser);
-	if((totalTokens = jsmn_parse(&parser, jsonString, strlen(jsonString), NULL, 0)) < 0){
-		fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON.\n", __LINE__, totalTokens);
-		exit(EXIT_FAILURE);
-	}
-
-	/*reinitialise parser and allocate memory for the tokens*/
-	jsmn_init(&parser);
-	tokenArr = malloc(totalTokens * sizeof(jsmntok_t));
-
-	/*parse JSON into tokenArr variable*/
-	if((jsmn_parse(&parser, jsonString, strlen(jsonString), tokenArr, totalTokens)) < 0){
-		fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON.\n", __LINE__, totalTokens);
-		exit(EXIT_FAILURE);
-	}
 
 	/*find string matching "value" and stop*/
-	while(i < totalTokens && !jsoneq(jsonString, tokenArr[i], "value")){
+	while(i < totalTokens && !jsoneq(jsonString, tokenArr[i], "value"))
 		i++;
-	}
 
 	/*the next token (after "value") should be an array of calendar events*/
 	if(i != totalTokens && tokenArr[++i].type == JSMN_ARRAY)
-		result = tokenArr[i].size;
+		return tokenArr[i].size;
+	return -1;
+}
 
-	/*free token list and return result*/
-	free(tokenArr);
-	return result;
+/*find the search value*/
+/*returns -1 if not found*/
+int findJsonValue(char *searchString, char *jsonString, jsmntok_t *tokenArr, int totalTokens){
+	int i = 0;
+
+	/*find key matching "value" and stop*/
+	while(i < totalTokens && !jsoneq(jsonString, tokenArr[i], searchString))
+		i++;
+
+	/*check a value is actually found*/
+	if(i == totalTokens)
+		return -1;
+
+	/*return corresponding value*/
+	return i;
 }
 
 /*
 * Tests the functions
 */
 int main(int argc, char** argv){
-	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey;
+	/*for networking*/
+	char *jsonResponse, *myHeaders[NUM_OF_HEADERS], *authkey;
 	char *myURL = "https://graph.microsoft.com/v1.0/me/calendarview/?startdatetime=2021-04-13T00:59:59.000Z&enddatetime=2021-04-13T23:59:59.999Z";
+
+	/*for json parsing*/
+	int totalTokens = -1, searchIndex;
+	jsmn_parser parser;
+	jsmntok_t *tokenArr;
 
 	/*get key from file*/
 	authkey = readKey("authkey.txt");
@@ -72,28 +71,45 @@ int main(int argc, char** argv){
 	myHeaders[2] = "Prefer: outlook.timezone=\"Europe/London\"";
 
 	/*send HTTP GET request and print response*/
-	myResponse = httpsGET(myURL, NUM_OF_HEADERS, myHeaders);
-	printf("%s\n",myResponse);
-
-	/*validate JSON*/
-	/*TODO*/
+	jsonResponse = httpsGET(myURL, NUM_OF_HEADERS, myHeaders);
+	printf("%s\n",jsonResponse);
 
 	/*check auth key*/
-	if(strstr(myResponse, "InvalidAuthenticationToken") != NULL) {
+	if(strstr(jsonResponse, "InvalidAuthenticationToken") != NULL) {
 		fprintf(stderr, "err ln%d: Authkey provided is not valid.\n", __LINE__);
-		free(myResponse);
-		free(myHeaders[1]);
-		free(authkey);
-		return 1;
+		exit(EXIT_FAILURE);
 	}
 
-	/*print the number of events on the given day*/
-	printf("\nNumber of Events: %d\n", numEvents(myResponse));
+	/*initialise parser and get number of tokens*/
+	jsmn_init(&parser);
+	if((totalTokens = jsmn_parse(&parser, jsonResponse, strlen(jsonResponse), NULL, 0)) < 0){
+		fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON, first pass.\n", __LINE__, totalTokens);
+		exit(EXIT_FAILURE);
+	}
+
+	/*reinitialise parser and allocate memory for the tokens*/
+	jsmn_init(&parser);
+	tokenArr = malloc(totalTokens * sizeof(jsmntok_t));
+
+	/*parse JSON into tokenArr variable*/
+	if((jsmn_parse(&parser, jsonResponse, strlen(jsonResponse), tokenArr, totalTokens)) < 0){
+		fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON, second pass.\n", __LINE__, totalTokens);
+		exit(EXIT_FAILURE);
+	}
+
+	/*print number of events*/
+	printf("Number of events on given day: %d\n", numOfEvents(jsonResponse, tokenArr, totalTokens));
+
+	/*list name of events*/
+	searchIndex = findJsonValue("subject", jsonResponse, tokenArr, totalTokens) + 1;
+	printf("First value:  %.*s\n", tokenArr[searchIndex].end - tokenArr[searchIndex].start,\
+		 jsonResponse + tokenArr[searchIndex].start);
 
 	/*frees*/
-	free(myResponse);
+	free(jsonResponse);
 	free(myHeaders[1]);
 	free(authkey);
+	free(tokenArr);
 
 	return 0;
 }

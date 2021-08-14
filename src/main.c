@@ -20,14 +20,23 @@ static int jsoneq(const char *entireJson, jsmntok_t token, const char *compariso
 int numEvents(char* jsonString){
 	int totalTokens = -1;
 	int i = 0;
+	int result = -1;
 	jsmn_parser parser;
-	jsmntok_t tokenArr[4096];
-
-	/*initialise parser*/
+	jsmntok_t *tokenArr;
+	
+	/*initialise parser and get number of tokens*/
 	jsmn_init(&parser);
+	if((totalTokens = jsmn_parse(&parser, jsonString, strlen(jsonString), NULL, 0)) < 0){
+		fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON.\n", __LINE__, totalTokens);
+		exit(EXIT_FAILURE);
+	}
 
-	/*parse JSON and return number of tokens found*/
-	if((totalTokens = jsmn_parse(&parser, jsonString, strlen(jsonString), tokenArr, 4096)) < 0){
+	/*reinitialise parser and allocate memory for the tokens*/
+	jsmn_init(&parser);
+	tokenArr = malloc(totalTokens * sizeof(jsmntok_t));
+
+	/*parse JSON into tokenArr variable*/
+	if((jsmn_parse(&parser, jsonString, strlen(jsonString), tokenArr, totalTokens)) < 0){
 		fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON.\n", __LINE__, totalTokens);
 		exit(EXIT_FAILURE);
 	}
@@ -36,14 +45,14 @@ int numEvents(char* jsonString){
 	while(i < totalTokens && !jsoneq(jsonString, tokenArr[i], "value")){
 		i++;
 	}
-	if(i == totalTokens)
-		return -1;
 
-	/*the corresponding value should be an array of calendar events*/
-	if(tokenArr[++i].type == JSMN_ARRAY){
-		return tokenArr[i].size;
-	}
-	return -1;
+	/*the next token (after "value") should be an array of calendar events*/
+	if(i != totalTokens && tokenArr[++i].type == JSMN_ARRAY)
+		result = tokenArr[i].size;
+
+	/*free token list and return result*/
+	free(tokenArr);
+	return result;
 }
 
 /*
@@ -62,12 +71,21 @@ int main(int argc, char** argv){
 	sprintf(myHeaders[1],"Authorization: %s",authkey);
 	myHeaders[2] = "Prefer: outlook.timezone=\"Europe/London\"";
 
-
 	/*send HTTP GET request and print response*/
 	myResponse = httpsGET(myURL, NUM_OF_HEADERS, myHeaders);
 	printf("%s\n",myResponse);
 
 	/*validate JSON*/
+	/*TODO*/
+
+	/*check auth key*/
+	if(strstr(myResponse, "InvalidAuthenticationToken") != NULL) {
+		fprintf(stderr, "err ln%d: Authkey provided is not valid.\n", __LINE__);
+		free(myResponse);
+		free(myHeaders[1]);
+		free(authkey);
+		return 1;
+	}
 
 	/*print the number of events on the given day*/
 	printf("\nNumber of Events: %d\n", numEvents(myResponse));

@@ -7,29 +7,18 @@ compile: get_jsmn
 	rm sendhttps.o
 
 compile_debug: get_jsmn
-	gcc -Wall -ansi -pedantic-errors -DDEBUG -c src/sendhttps.c
-	gcc -Wall -ansi -pedantic-errors src/main.c sendhttps.o -lcurl
+	gcc -Wall -ansi -pedantic-errors -DDEBUG -c src/sendhttps.c -g
+	gcc -Wall -ansi -pedantic-errors -DDEBUG src/main.c sendhttps.o -lcurl -g
 	rm sendhttps.o
 
-run: get_jsmn
-	gcc -c src/sendhttps.c
-	gcc src/main.c sendhttps.o -lcurl
-	rm sendhttps.o
+run: compile
 	./a.out
 
-run_debug: get_jsmn
-	gcc -Wall -ansi -pedantic-errors -DDEBUG -c src/sendhttps.c
-	gcc -Wall -ansi -pedantic-errors src/main.c sendhttps.o -lcurl
-	rm sendhttps.o
+run_debug: compile_debug
 	./a.out
 
-mem: get_jsmn
-	gcc -c src/sendhttps.c -g
-	gcc src/main.c sendhttps.o -lcurl -g
-	rm sendhttps.o
+mem: compile
 	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --suppressions=./src/lib.supp ./a.out
 
-mem_debug: get_jsmn
-	gcc -Wall -ansi -pedantic-errors -DDEBUG -c src/sendhttps.c -g
-	gcc -Wall -ansi -pedantic-errors src/main.c sendhttps.o -lcurl -g
+mem_debug: compile_debug
 	valgrind --tool=memcheck --leak-check=yes --show-reachable=yes --suppressions=./src/lib.supp ./a.out

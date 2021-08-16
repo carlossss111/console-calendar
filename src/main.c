@@ -87,6 +87,17 @@ int printKeyValue(JsonWrapper json, char *searchKey, int objToken){
 	return 0;
 }
 
+/*navigates to the token after the selected one ends, returns that index*/
+/*returns -1 if not found*/
+int navigateToNext(JsonWrapper json, int index){
+	int end = json.tokenPtr[index].end;
+	while(index < json.tokenTotal && json.tokenPtr[index].start < end)
+		index++;
+	if(index >= json.tokenTotal)
+		return -1;
+	return index;
+}
+
 /*
 * Tests the functions
 */
@@ -94,9 +105,9 @@ int main(int argc, char** argv){
 	/*for networking*/
 	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey;
 	char *myURL = "https://graph.microsoft.com/v1.0/me/calendarview/?startdatetime=2021-04-13T00:59:59.000Z&enddatetime=2021-04-13T23:59:59.999Z";
-
+	
 	int i;
-	int j;
+	int tokenIndex;
 
 	/*for json parsing*/
 	JsonWrapper *json;
@@ -116,8 +127,8 @@ int main(int argc, char** argv){
 
 	/*send HTTP GET request and print response*/
 	myResponse = httpsGET(myURL, NUM_OF_HEADERS, myHeaders);
-	#ifdef temp
-	printf("%s\n",myResponse);
+	#ifdef DEBUG
+	printf("RAW_RESPONSE: %s\n",myResponse);
 	#endif
 
 	/*check auth key*/
@@ -138,23 +149,23 @@ int main(int argc, char** argv){
 	printf("Number of events on given day: %d\n", eventCount(*json));
 
 	/*navigate j to list of calendar events*/
-	j = 0;
-	while(j < json->tokenTotal && !jsoneq(json->raw, json->tokenPtr[j], "value"))
-		j++;
-	if(j >= json->tokenTotal || json->tokenPtr[++j].type != JSMN_ARRAY)
+	tokenIndex = 0;
+	while(tokenIndex < json->tokenTotal && !jsoneq(json->raw, json->tokenPtr[tokenIndex], "value"))
+		tokenIndex++;
+	if(tokenIndex >= json->tokenTotal || json->tokenPtr[++tokenIndex].type != JSMN_ARRAY)
 		return 1;
-	if(j >= json->tokenTotal || json->tokenPtr[++j].type != JSMN_OBJECT)
+	if(tokenIndex >= json->tokenTotal || json->tokenPtr[++tokenIndex].type != JSMN_OBJECT)
 		return 1;
 	
 	/*loop through each event*/
 	for(i = 0; i < eventCount(*json);i++){
 
 		/*print calendar event*/
-		printKeyValue(*json, "subject", j);
+		printKeyValue(*json, "subject", tokenIndex);
 		putchar('\n');
 
 		/*go to next calendar event*/
-		j += SIZE_OF_CALENDAR_EVENT; /*probably should replace with something more adaptable*/
+		tokenIndex = navigateToNext(*json,tokenIndex);
 	}
 
 	/*frees*/

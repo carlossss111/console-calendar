@@ -6,11 +6,7 @@
 #include "sendhttps.h"
 #include "jsmn.h"
 
-/*networking*/
 #define NUM_OF_HEADERS 3
-
-/*JSON parsing*/
-#define SIZE_OF_CALENDAR_EVENT 115
 
 /*structure for grouping JSON properties*/
 typedef struct JsonWrapper{
@@ -51,40 +47,44 @@ int jsoneq(const char *entireJson, jsmntok_t token, const char *comparisonString
   return 0;
 }
 
+/*return index of searched key/value within an object*/
+int getKeyValue(JsonWrapper json, char *searchKey, int objToken){
+	int i = objToken;
+	int objEnd = json.tokenPtr[objToken].end;
+
+	/*check an object type has been provided*/
+	if(json.tokenPtr[objToken].type != JSMN_OBJECT)
+		return -1;
+
+	/*navigate to key*/
+	while(json.tokenPtr[i].start < objEnd && !jsoneq(json.raw, json.tokenPtr[i], searchKey))
+		i++;
+	if(json.tokenPtr[i].start >= json.tokenPtr[objToken].end)
+		return -1;
+
+	/*print value corresponding to key*/
+	return ++i;
+}
+
+/*given a key and an object token, print the corresponding value if in the object token*/
+void printKeyValue(JsonWrapper json, char *searchKey, int objToken){
+	int i = getKeyValue(json,searchKey,objToken);
+	printf("%.*s",json.tokenPtr[i].end - json.tokenPtr[i].start,json.raw + json.tokenPtr[i].start);
+	return;
+}
+
 /*return number of calendar events from a given JSON*/
 /*returns -1 if not found*/
 int eventCount(JsonWrapper json){
 	int i = 0;
 
 	/*find string matching "value" and stop*/
-	while(i < json.tokenTotal && !jsoneq(json.raw, json.tokenPtr[i], "value"))
-		i++;
+	i = getKeyValue(json,"value",0);
 
 	/*the next token (after "value") should be an array of calendar events*/
-	if(i != json.tokenTotal && json.tokenPtr[++i].type == JSMN_ARRAY)
+	if(i != json.tokenTotal && json.tokenPtr[i].type == JSMN_ARRAY)
 		return json.tokenPtr[i].size;
 	return -1;
-}
-
-/*given a key and an object token, print the corresponding value if in the object token*/
-int printKeyValue(JsonWrapper json, char *searchKey, int objToken){
-	int i = objToken;
-	int objEnd = json.tokenPtr[objToken].end;
-
-	/*check an object type has been provided*/
-	if(json.tokenPtr[objToken].type != JSMN_OBJECT)
-		return 1;
-
-	/*navigate to key*/
-	while(json.tokenPtr[i].start < objEnd && !jsoneq(json.raw, json.tokenPtr[i], searchKey))
-		i++;
-	if(json.tokenPtr[i].start >= json.tokenPtr[objToken].end)
-		return 1;
-
-	/*print value corresponding to key*/
-	i++;
-	printf("%.*s",json.tokenPtr[i].end - json.tokenPtr[i].start,json.raw + json.tokenPtr[i].start);
-	return 0;
 }
 
 /*navigates to the token after the selected one ends, returns that index*/
@@ -149,19 +149,27 @@ int main(int argc, char** argv){
 	printf("Number of events on given day: %d\n", eventCount(*json));
 
 	/*navigate j to list of calendar events*/
-	tokenIndex = 0;
-	while(tokenIndex < json->tokenTotal && !jsoneq(json->raw, json->tokenPtr[tokenIndex], "value"))
-		tokenIndex++;
-	if(tokenIndex >= json->tokenTotal || json->tokenPtr[++tokenIndex].type != JSMN_ARRAY)
-		return 1;
-	if(tokenIndex >= json->tokenTotal || json->tokenPtr[++tokenIndex].type != JSMN_OBJECT)
-		return 1;
-	
+	if((tokenIndex = getKeyValue(*json,"value",0)) < 0){
+		fprintf(stderr, "err ln%d: Cannot find list of events.\n", __LINE__);
+		exit(EXIT_FAILURE);
+	}
+	tokenIndex++;
+
 	/*loop through each event*/
 	for(i = 0; i < eventCount(*json);i++){
 
 		/*print calendar event*/
+		printf("Subject: ");
 		printKeyValue(*json, "subject", tokenIndex);
+		putchar('\n');
+		printf("Start: ");
+		printKeyValue(*json, "dateTime", tokenIndex);
+		putchar('\n');
+		printf("End: ");
+		printKeyValue(*json, "dateTime", getKeyValue(*json, "end", tokenIndex));
+		putchar('\n');
+		printf("Body: ");
+		printKeyValue(*json, "bodyPreview", tokenIndex);
 		putchar('\n');
 
 		/*go to next calendar event*/

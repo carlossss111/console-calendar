@@ -67,10 +67,10 @@ int getKeyValue(JsonWrapper json, char *searchKey, int objToken){
 }
 
 /*given a key and an object token, print the corresponding value if in the object token*/
-void printKeyValue(JsonWrapper json, char *searchKey, int objToken){
-	int i = getKeyValue(json,searchKey,objToken);
-	printf("%.*s",json.tokenPtr[i].end - json.tokenPtr[i].start,json.raw + json.tokenPtr[i].start);
-	return;
+void printKeyValue(JsonWrapper json, int token){
+	if(token < 0)
+		return;
+	printf("%.*s",json.tokenPtr[token].end - json.tokenPtr[token].start,json.raw + json.tokenPtr[token].start);
 }
 
 /*return number of calendar events from a given JSON*/
@@ -108,6 +108,7 @@ int main(int argc, char** argv){
 	
 	int i;
 	int tokenIndex;
+	int subTokenIndex;
 
 	/*for json parsing*/
 	JsonWrapper *json;
@@ -146,37 +147,52 @@ int main(int argc, char** argv){
 	jsmnParseWrapper(json); /*the json.tokenPtr is populated here*/
 
 	/*print number of events*/
-	printf("Number of events on given day: %d\n", eventCount(*json));
+	printf("Number of events on given day: %d\n\n", eventCount(*json));
 
 	/*navigate j to list of calendar events*/
 	if((tokenIndex = getKeyValue(*json,"value",0)) < 0){
-		fprintf(stderr, "err ln%d: Cannot find list of events.\n", __LINE__);
+		fprintf(stderr, "err ln%d: Cannot find list of calendar events.\n", __LINE__);
 		exit(EXIT_FAILURE);
 	}
 	tokenIndex++;
 
 	/*loop through each event*/
 	for(i = 0; i < eventCount(*json);i++){
+		/*
+		* print a calendar event
+		*/
 
-		/*print calendar event*/
-		printf("Subject: ");
-		printKeyValue(*json, "subject", tokenIndex);
+		/*print the HH:MM part of the starting dateTime*/
+		printKeyValue(*json, getKeyValue(*json, "isAllDay", tokenIndex));
+		subTokenIndex = getKeyValue(*json, "start", tokenIndex);
+		printf("%.*s", 5, json->raw + json->tokenPtr\
+			[getKeyValue(*json, "dateTime", subTokenIndex)].start + 11); 
+
+		/*print the HH:MMpart of the endingdateTime*/
+		subTokenIndex = getKeyValue(*json, "end", tokenIndex);
+		printf(" - %.*s\n", 5, json->raw + json->tokenPtr\
+			[getKeyValue(*json, "dateTime", subTokenIndex)].start + 11); 
+
+		/*print event heading*/
+		printf("=============\n");
+		printKeyValue(*json, getKeyValue(*json, "subject", tokenIndex));
 		putchar('\n');
-		printf("Start: ");
-		printKeyValue(*json, "dateTime", tokenIndex);
-		putchar('\n');
-		printf("End: ");
-		printKeyValue(*json, "dateTime", getKeyValue(*json, "end", tokenIndex));
-		putchar('\n');
-		printf("Body: ");
-		printKeyValue(*json, "bodyPreview", tokenIndex);
+
+		/*print the event description, if there is any*/
+		if(json->tokenPtr[getKeyValue(*json, "bodyPreview", tokenIndex)].start\
+			!= json->tokenPtr[getKeyValue(*json, "bodyPreview", tokenIndex)].end){
+			printf("Description: ");
+			printKeyValue(*json, getKeyValue(*json, "bodyPreview", tokenIndex));
+			putchar('\n');
+		}
+
 		putchar('\n');
 
 		/*go to next calendar event*/
 		tokenIndex = navigateToNext(*json,tokenIndex);
 	}
 
-	/*frees*/
+	/*end of program*/
 	free(myHeaders[1]);
 	free(authkey);
 	free(json->raw);

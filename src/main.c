@@ -40,15 +40,16 @@ int jsmnParseWrapper(JsonWrapper *json){
 
 /*return whether a given json token is equal to a string*/
 int jsoneq(const char *entireJson, jsmntok_t token, const char *comparisonString) {
-  if (token.type == JSMN_STRING && (int)strlen(comparisonString) == token.end - token.start && \
-      strncmp(entireJson + token.start, comparisonString, token.end - token.start) == 0) {
+	if ((int)strlen(comparisonString) == token.end - token.start && \
+		strncmp(entireJson + token.start, comparisonString, token.end - token.start) == 0) {
     return 1;
-  }
-  return 0;
+	}
+	return 0;
 }
 
-/*return index of searched key/value within an object*/
-int getKeyValue(JsonWrapper json, char *searchKey, int objToken){
+/*each key has a matching value right after it. returns the value when given a key and a object to search within*/
+/*returns -1 if not found*/
+int nextIndexOf(JsonWrapper json, char *searchKey, int objToken){
 	int i = objToken;
 	int objEnd = json.tokenPtr[objToken].end;
 
@@ -66,11 +67,20 @@ int getKeyValue(JsonWrapper json, char *searchKey, int objToken){
 	return ++i;
 }
 
-/*given a key and an object token, print the corresponding value if in the object token*/
-void printKeyValue(JsonWrapper json, int token){
-	if(token < 0)
-		return;
-	printf("%.*s",json.tokenPtr[token].end - json.tokenPtr[token].start,json.raw + json.tokenPtr[token].start);
+/*returns token pointer matching the key*/
+jsmntok_t nextTokenOf(JsonWrapper json, char *searchKey, int objToken){
+	return json.tokenPtr[nextIndexOf(json, searchKey, objToken)];
+}
+
+/*given a key and an object token, print the corresponding value*/
+void printNext(JsonWrapper json, char *searchKey, int objToken){
+	jsmntok_t token = nextTokenOf(json, searchKey, objToken);
+	printf("%.*s", token.end - token.start, json.raw + token.start);
+}
+
+/*given a key and an object token, print part of the value*/
+void printNextn(JsonWrapper json, char *searchKey, int objToken, int size, int start){
+	printf("%.*s", size, json.raw + nextTokenOf(json, searchKey, objToken).start + start); 
 }
 
 /*return number of calendar events from a given JSON*/
@@ -79,7 +89,7 @@ int eventCount(JsonWrapper json){
 	int i = 0;
 
 	/*find string matching "value" and stop*/
-	i = getKeyValue(json,"value",0);
+	i = nextIndexOf(json,"value",0);
 
 	/*the next token (after "value") should be an array of calendar events*/
 	if(i != json.tokenTotal && json.tokenPtr[i].type == JSMN_ARRAY)
@@ -87,7 +97,7 @@ int eventCount(JsonWrapper json){
 	return -1;
 }
 
-/*navigates to the token after the selected one ends, returns that index*/
+/*navigates to the object/array after the selected one ends, returns that index*/
 /*returns -1 if not found*/
 int navigateToNext(JsonWrapper json, int index){
 	int end = json.tokenPtr[index].end;
@@ -150,7 +160,7 @@ int main(int argc, char** argv){
 	printf("Number of events on given day: %d\n\n", eventCount(*json));
 
 	/*navigate j to list of calendar events*/
-	if((tokenIndex = getKeyValue(*json,"value",0)) < 0){
+	if((tokenIndex = nextIndexOf(*json,"value",0)) < 0){
 		fprintf(stderr, "err ln%d: Cannot find list of calendar events.\n", __LINE__);
 		exit(EXIT_FAILURE);
 	}
@@ -162,27 +172,30 @@ int main(int argc, char** argv){
 		* print a calendar event
 		*/
 
-		/*print the HH:MM part of the starting dateTime*/
-		printKeyValue(*json, getKeyValue(*json, "isAllDay", tokenIndex));
-		subTokenIndex = getKeyValue(*json, "start", tokenIndex);
-		printf("%.*s", 5, json->raw + json->tokenPtr\
-			[getKeyValue(*json, "dateTime", subTokenIndex)].start + 11); 
+		if(jsoneq(json->raw, nextTokenOf(*json, "isAllDay", tokenIndex),"true"))
+			printf("   All Day");
+		else{
+			/*print the HH:MM part of the starting dateTime*/
+			subTokenIndex = nextIndexOf(*json, "start", tokenIndex);
+			printNextn(*json, "dateTime", subTokenIndex, 5, 11);/*5 characters long, 11th character start*/
 
-		/*print the HH:MMpart of the endingdateTime*/
-		subTokenIndex = getKeyValue(*json, "end", tokenIndex);
-		printf(" - %.*s\n", 5, json->raw + json->tokenPtr\
-			[getKeyValue(*json, "dateTime", subTokenIndex)].start + 11); 
+			/*print the HH:MMpart of the ending dateTime*/
+			subTokenIndex = nextIndexOf(*json, "end", tokenIndex);
+			printf(" - ");
+			printNextn(*json, "dateTime", subTokenIndex, 5, 11);
+		}
+		putchar('\n');
 
 		/*print event heading*/
 		printf("=============\n");
-		printKeyValue(*json, getKeyValue(*json, "subject", tokenIndex));
+		printNext(*json, "subject", tokenIndex);
 		putchar('\n');
 
 		/*print the event description, if there is any*/
-		if(json->tokenPtr[getKeyValue(*json, "bodyPreview", tokenIndex)].start\
-			!= json->tokenPtr[getKeyValue(*json, "bodyPreview", tokenIndex)].end){
-			printf("Description: ");
-			printKeyValue(*json, getKeyValue(*json, "bodyPreview", tokenIndex));
+		if(nextTokenOf(*json, "bodyPreview", tokenIndex).start \
+		!= nextTokenOf(*json, "bodyPreview", tokenIndex).end){
+			printf("desc: ");
+			printNext(*json, "bodyPreview", tokenIndex);
 			putchar('\n');
 		}
 

@@ -9,12 +9,40 @@
 #define NUM_OF_HEADERS 3
 #define CAL_ID_LENGTH 152
 
-/*return today in YYYY-MM-DD format*/
+/*return today in YYYY-MM-DD format, needs freeing*/
 char *getToday(){
 	char *date;
 	time_t t = time(NULL);
 	struct tm tm = *localtime(&t);
 
+	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
+	sprintf(date, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+	
+	return date;
+}
+
+/*return tomorrow in YYYY-MM-DD format, needs freeing*/
+char *getTomorrow(){
+	char *date;
+	time_t t = time(NULL);
+	struct tm tm;
+
+	t += 24*60*60;
+	tm = *localtime(&t);
+	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
+	sprintf(date, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+	
+	return date;
+}
+
+/*return yesturday in YYYY-MM-DD format, needs freeing*/
+char *getYesturday(){
+	char *date;
+	time_t t = time(NULL);
+	struct tm tm;
+
+	t -= 24*60*60;
+	tm = *localtime(&t);
 	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
 	sprintf(date, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
 	
@@ -230,8 +258,24 @@ int main(int argc, char** argv){
 	json->tokenTotal = -1;
 	json->tokenPtr = NULL;
 
-	/*get date*/
-	dateStr = getToday();
+	/*get formatted date*/
+	if(argc < 2 || strncmp("today",argv[1],3) == 0)
+		dateStr = getToday();
+	else if(strncmp("tomorrow",argv[1],3) == 0)
+		dateStr = getTomorrow();
+	else if(strncmp("yesturday",argv[1],3) == 0)
+		dateStr = getYesturday();
+	else if(strcmp("help", argv[1]) == 0)
+		printf("Please see README.md for usage instructions.\n");
+	else{
+		printf("Argument not recognised!\n"); 
+		return 1;
+	}
+
+	/*construct the date with the query string*/
+	query = (char *) malloc(strlen(queryPt1) + strlen(dateStr)+ strlen(queryPt2)\
+	 + strlen(dateStr) + strlen(queryPt3) + 1 * sizeof(char));
+	sprintf(query, "%s%s%s%s%s", queryPt1, dateStr, queryPt2, dateStr, queryPt3);
 	
 	/*get key from file*/
 	authkey = readKey("authkey.txt");
@@ -275,11 +319,10 @@ int main(int argc, char** argv){
 		sprintf(calendarId, "%.*s", CAL_ID_LENGTH, json->raw + nextTokenOf(*json, "id", tokenIndex).start); 
 
 		/*construct the complete calendarview URL*/
-		eventURL = (char *) malloc(strlen(domain) + strlen(calendarId) + strlen(queryPt1) + strlen(dateStr)\
-			+ strlen(queryPt2) + strlen(dateStr) + strlen(queryPt3) + 1 * sizeof(char));
-		sprintf(eventURL, "%s%s%s%s%s%s%s", domain, calendarId, queryPt1, dateStr, queryPt2, dateStr, queryPt3);
+		eventURL = (char *) malloc(strlen(domain) + strlen(calendarId) + strlen(query) + 1 * sizeof(char));
+		sprintf(eventURL, "%s%s%s", domain, calendarId, query);
 
-		/*display events from given calendar*/
+		/*display events from given calendar and add to the total*/
 		eventTotal += displayCalendar(eventURL, myHeaders, authkey);
 
 		/*free constructed URL and go to next calendar event*/
@@ -287,9 +330,10 @@ int main(int argc, char** argv){
 		free(eventURL);
 	}
 
-	printf("Number of events = %d\n", eventTotal);
+	printf("Showing %d total events.\n", eventTotal);
 
 	/*frees*/
+	free(query);
 	free(dateStr);
 	free(myHeaders[1]);
 	free(authkey);

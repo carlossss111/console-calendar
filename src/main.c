@@ -113,10 +113,8 @@ int navigateToNext(JsonWrapper json, int index){
 * displays the events, descriptions and times,
 * returns number of events parsed.
 */
-int displayCalendar(char* url){
-	/*for networking*/
-	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey;
-	
+int displayCalendar(char *url, char *headers[NUM_OF_HEADERS], char *authkey){
+	/*counters*/
 	int i;
 	int tokenIndex;
 	int subTokenIndex;
@@ -129,23 +127,13 @@ int displayCalendar(char* url){
 	json->tokenTotal = -1;
 	json->tokenPtr = NULL;
 
-	/*get key from file*/
-	authkey = readKey("authkey.txt");
-
-	/*specify headers*/
-	myHeaders[0] = "Host: graph.microsoft.com";
-	myHeaders[1] = (char *) malloc(strlen("Authorization: ") + strlen(authkey) + 1 * sizeof(char));
-	sprintf(myHeaders[1],"Authorization: %s",authkey);
-	myHeaders[2] = "Prefer: outlook.timezone=\"Europe/London\"";
-
 	/*send HTTP GET request and print response*/
-	myResponse = httpsGET(url, NUM_OF_HEADERS, myHeaders);
+	json->raw = httpsGET(url, NUM_OF_HEADERS, headers);
 	#ifdef DEBUG
-	printf("RAW_RESPONSE: %s\n",myResponse);
+	printf("RAW_RESPONSE: %s\n", json->raw);
 	#endif
 
 	/*get number of tokens for json.tokenTotal*/
-	json->raw = myResponse;
 	jsmnParseWrapper(json);
 
 	/*allocate memory for the json.tokenPtr and populate it*/
@@ -201,8 +189,6 @@ int displayCalendar(char* url){
 	/*end of program*/
 	eventTotal = eventCount(*json);
 
-	free(myHeaders[1]);
-	free(authkey);
 	free(json->raw);
 	free(json->tokenPtr);
 	free(json);
@@ -214,7 +200,6 @@ int displayCalendar(char* url){
 
 int main(int argc, char** argv){
 	/*for networking*/
-	/*https://graph.microsoft.com/v1.0/me/calendars/{id here}/calendarview/?startdatetime=2021-04-13T00:00:00.000Z&enddatetime=2021-04-13T23:59:59.999Z*/
 	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey, calendarId[CAL_ID_LENGTH+1];
 	char *listCalendarsURL = "https://graph.microsoft.com/v1.0/me/calendars";
 
@@ -242,7 +227,7 @@ int main(int argc, char** argv){
 	sprintf(myHeaders[1],"Authorization: %s",authkey);
 	myHeaders[2] = "Prefer: outlook.timezone=\"Europe/London\"";
 
-	/*send HTTP GET request and print response*/
+	/*get list of calendars*/
 	myResponse = httpsGET(listCalendarsURL, NUM_OF_HEADERS, myHeaders);
 	#ifdef DEBUG
 	printf("RAW_RESPONSE: %s\n",myResponse);
@@ -254,7 +239,7 @@ int main(int argc, char** argv){
 		exit(EXIT_FAILURE);
 	}
 
-	/*get number of tokens for json.tokenTotal*/
+	/*get number of tokens*/
 	json->raw = myResponse;
 	jsmnParseWrapper(json);
 
@@ -262,7 +247,7 @@ int main(int argc, char** argv){
 	json->tokenPtr = malloc(json->tokenTotal * sizeof(jsmntok_t));
 	jsmnParseWrapper(json); /*the json.tokenPtr is populated here*/
 
-	/*navigate j to list of calendar events*/
+	/*navigate token index to list of calendars*/
 	if((tokenIndex = nextIndexOf(*json,"value",0)) < 0){
 		fprintf(stderr, "err ln%d: Cannot find list of calendars.\n", __LINE__);
 		exit(EXIT_FAILURE);
@@ -279,7 +264,7 @@ int main(int argc, char** argv){
 		sprintf(fullURL, "%s%s%s", domain, calendarId, query);
 
 		/*display events from given calendar*/
-		eventTotal += displayCalendar(fullURL);
+		eventTotal += displayCalendar(fullURL, myHeaders, authkey);
 
 		/*free constructed URL and go to next calendar event*/
 		tokenIndex = navigateToNext(*json,tokenIndex);

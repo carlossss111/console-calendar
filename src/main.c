@@ -49,6 +49,28 @@ char *getYesturday(){
 	return date;
 }
 
+/*return provided date in YYYY-MM-DD format, needs freeing*/
+char *getDate(char *argvv){
+	char *date;
+	time_t t = time(NULL);
+	struct tm tm = *localtime(&t);
+
+	/*light validation using ASCII tables to make sure input is numerical i.e DD/MM*/
+	if(
+	  argvv[1] < 48   || argvv[1] > 57 ||\
+	  argvv[2] != '/' ||\
+	  argvv[3] < 48   || argvv[3] > 49 ||\
+	  argvv[4] < 48   || argvv[4] > 57  ){
+		printf("Argument for date is garbled. Should formatted like './consolecal DD/MM'\n");
+		exit(EXIT_FAILURE);
+	}
+
+	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
+	sprintf(date, "%04d-%c%c-%c%c", tm.tm_year + 1900, argvv[3], argvv[4], argvv[0], argvv[1]);
+	
+	return date;
+}
+
 /*structure for grouping JSON properties*/
 typedef struct JsonWrapper{
 		char *raw;
@@ -265,6 +287,8 @@ int main(int argc, char** argv){
 		dateStr = getTomorrow();
 	else if(strncmp("yesturday",argv[1],3) == 0)
 		dateStr = getYesturday();
+	else if(argv[1][0] > 47 && argv[1][0] < 52)/*see ASCII table*/
+		dateStr = getDate(argv[1]);
 	else if(strcmp("help", argv[1]) == 0)
 		printf("Please see README.md for usage instructions.\n");
 	else{
@@ -330,7 +354,7 @@ int main(int argc, char** argv){
 		free(eventURL);
 	}
 
-	printf("Showing %d total events.\n", eventTotal);
+	printf("Found %d total events.\n", eventTotal);
 
 	/*frees*/
 	free(query);

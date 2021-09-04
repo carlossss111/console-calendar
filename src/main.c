@@ -9,6 +9,18 @@
 #define NUM_OF_HEADERS 3
 #define CAL_ID_LENGTH 152
 
+/*return today in YYYY-MM-DD format*/
+char *getToday(){
+	char *date;
+	time_t t = time(NULL);
+	struct tm tm = *localtime(&t);
+
+	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
+	sprintf(date, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+	
+	return date;
+}
+
 /*structure for grouping JSON properties*/
 typedef struct JsonWrapper{
 		char *raw;
@@ -196,16 +208,16 @@ int displayCalendar(char *url, char *headers[NUM_OF_HEADERS], char *authkey){
 	return eventTotal;
 }
 
-
-
 int main(int argc, char** argv){
 	/*for networking*/
 	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey, calendarId[CAL_ID_LENGTH+1];
 	char *listCalendarsURL = "https://graph.microsoft.com/v1.0/me/calendars";
 
 	char *domain = "https://graph.microsoft.com/v1.0/me/calendars/";
-	char *query = "/calendarview/?startdatetime=2021-04-13T00:00:00.000Z&enddatetime=2021-04-13T23:59:59.999Z";
-	char *fullURL;
+	char *queryPt1 = "/calendarview/?startdatetime=";
+	char *queryPt2 = "T00:00:00.000Z&enddatetime=";
+	char *queryPt3 = "T23:59:59.999Z";
+	char *dateStr, *query, *eventURL;
 
 	int eventTotal = 0;
 
@@ -218,6 +230,9 @@ int main(int argc, char** argv){
 	json->tokenTotal = -1;
 	json->tokenPtr = NULL;
 
+	/*get date*/
+	dateStr = getToday();
+	
 	/*get key from file*/
 	authkey = readKey("authkey.txt");
 
@@ -260,20 +275,22 @@ int main(int argc, char** argv){
 		sprintf(calendarId, "%.*s", CAL_ID_LENGTH, json->raw + nextTokenOf(*json, "id", tokenIndex).start); 
 
 		/*construct the complete calendarview URL*/
-		fullURL = (char *) malloc(strlen(domain) + strlen(calendarId) + strlen(query) + 1 * sizeof(char));
-		sprintf(fullURL, "%s%s%s", domain, calendarId, query);
+		eventURL = (char *) malloc(strlen(domain) + strlen(calendarId) + strlen(queryPt1) + strlen(dateStr)\
+			+ strlen(queryPt2) + strlen(dateStr) + strlen(queryPt3) + 1 * sizeof(char));
+		sprintf(eventURL, "%s%s%s%s%s%s%s", domain, calendarId, queryPt1, dateStr, queryPt2, dateStr, queryPt3);
 
 		/*display events from given calendar*/
-		eventTotal += displayCalendar(fullURL, myHeaders, authkey);
+		eventTotal += displayCalendar(eventURL, myHeaders, authkey);
 
 		/*free constructed URL and go to next calendar event*/
 		tokenIndex = navigateToNext(*json,tokenIndex);
-		free(fullURL);
+		free(eventURL);
 	}
 
 	printf("Number of events = %d\n", eventTotal);
 
 	/*frees*/
+	free(dateStr);
 	free(myHeaders[1]);
 	free(authkey);
 	free(json->raw);

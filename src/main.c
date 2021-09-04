@@ -7,6 +7,7 @@
 #include "jsmn.h"
 
 #define NUM_OF_HEADERS 3
+#define CAL_ID_LENGTH 152
 
 /*structure for grouping JSON properties*/
 typedef struct JsonWrapper{
@@ -26,15 +27,14 @@ int jsmnParseWrapper(JsonWrapper *json){
 			fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON UNKNOWN size.\n", __LINE__, json->tokenTotal);
 			exit(EXIT_FAILURE);
 		}
-	}
-	/*if json.tokenTotal is known, parse it properly and load the tokens into json.tokenPtr*/
-	else{
-		if((jsmn_parse(&json->parser, json->raw, strlen(json->raw), json->tokenPtr, json->tokenTotal)) < 0){
-			fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON of KNOWN size.\n", __LINE__, json->tokenTotal);
-			exit(EXIT_FAILURE);
-		}
+		return 0;
 	}
 
+	/*if json.tokenTotal is known, parse it properly and load the tokens into json.tokenPtr*/
+	if((jsmn_parse(&json->parser, json->raw, strlen(json->raw), json->tokenPtr, json->tokenTotal)) < 0){
+		fprintf(stderr, "err ln%d: Error code (%d) when parsing JSON of KNOWN size.\n", __LINE__, json->tokenTotal);
+		exit(EXIT_FAILURE);
+	}
 	return 0;
 }
 
@@ -109,16 +109,18 @@ int navigateToNext(JsonWrapper json, int index){
 }
 
 /*
-* Tests the functions
+* Parses a given microsoft calendar,
+* displays the events, descriptions and times,
+* returns number of events parsed.
 */
-int main(int argc, char** argv){
+int displayCalendar(char* url){
 	/*for networking*/
 	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey;
-	char *myURL = "https://graph.microsoft.com/v1.0/me/calendarview/?startdatetime=2021-04-13T00:59:59.000Z&enddatetime=2021-04-13T23:59:59.999Z";
 	
 	int i;
 	int tokenIndex;
 	int subTokenIndex;
+	int eventTotal = 0;
 
 	/*for json parsing*/
 	JsonWrapper *json;
@@ -137,16 +139,10 @@ int main(int argc, char** argv){
 	myHeaders[2] = "Prefer: outlook.timezone=\"Europe/London\"";
 
 	/*send HTTP GET request and print response*/
-	myResponse = httpsGET(myURL, NUM_OF_HEADERS, myHeaders);
+	myResponse = httpsGET(url, NUM_OF_HEADERS, myHeaders);
 	#ifdef DEBUG
 	printf("RAW_RESPONSE: %s\n",myResponse);
 	#endif
-
-	/*check auth key*/
-	if(strstr(myResponse, "InvalidAuthenticationToken") != NULL) {
-		fprintf(stderr, "err ln%d: Authkey provided is not valid.\n", __LINE__);
-		exit(EXIT_FAILURE);
-	}
 
 	/*get number of tokens for json.tokenTotal*/
 	json->raw = myResponse;
@@ -155,9 +151,6 @@ int main(int argc, char** argv){
 	/*allocate memory for the json.tokenPtr and populate it*/
 	json->tokenPtr = malloc(json->tokenTotal * sizeof(jsmntok_t));
 	jsmnParseWrapper(json); /*the json.tokenPtr is populated here*/
-
-	/*print number of events*/
-	printf("Number of events on given day: %d\n\n", eventCount(*json));
 
 	/*navigate j to list of calendar events*/
 	if((tokenIndex = nextIndexOf(*json,"value",0)) < 0){
@@ -206,6 +199,96 @@ int main(int argc, char** argv){
 	}
 
 	/*end of program*/
+	eventTotal = eventCount(*json);
+
+	free(myHeaders[1]);
+	free(authkey);
+	free(json->raw);
+	free(json->tokenPtr);
+	free(json);
+
+	return eventTotal;
+}
+
+
+
+int main(int argc, char** argv){
+	/*for networking*/
+	/*https://graph.microsoft.com/v1.0/me/calendars/{id here}/calendarview/?startdatetime=2021-04-13T00:00:00.000Z&enddatetime=2021-04-13T23:59:59.999Z*/
+	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey, calendarId[CAL_ID_LENGTH+1];
+	char *listCalendarsURL = "https://graph.microsoft.com/v1.0/me/calendars";
+
+	char *domain = "https://graph.microsoft.com/v1.0/me/calendars/";
+	char *query = "/calendarview/?startdatetime=2021-04-13T00:00:00.000Z&enddatetime=2021-04-13T23:59:59.999Z";
+	char *fullURL;
+
+	int eventTotal = 0;
+
+	/*for json parsing*/
+	int i;
+	int tokenIndex;
+	JsonWrapper *json;
+	json = malloc(sizeof(JsonWrapper));
+	json->raw = NULL;
+	json->tokenTotal = -1;
+	json->tokenPtr = NULL;
+
+	/*get key from file*/
+	authkey = readKey("authkey.txt");
+
+	/*specify headers*/
+	myHeaders[0] = "Host: graph.microsoft.com";
+	myHeaders[1] = (char *) malloc(strlen("Authorization: ") + strlen(authkey) + 1 * sizeof(char));
+	sprintf(myHeaders[1],"Authorization: %s",authkey);
+	myHeaders[2] = "Prefer: outlook.timezone=\"Europe/London\"";
+
+	/*send HTTP GET request and print response*/
+	myResponse = httpsGET(listCalendarsURL, NUM_OF_HEADERS, myHeaders);
+	#ifdef DEBUG
+	printf("RAW_RESPONSE: %s\n",myResponse);
+	#endif
+
+	/*check auth key*/
+	if(strstr(myResponse, "InvalidAuthenticationToken") != NULL) {
+		fprintf(stderr, "err ln%d: Authkey provided is not valid.\n", __LINE__);
+		exit(EXIT_FAILURE);
+	}
+
+	/*get number of tokens for json.tokenTotal*/
+	json->raw = myResponse;
+	jsmnParseWrapper(json);
+
+	/*allocate memory for the json.tokenPtr and populate it*/
+	json->tokenPtr = malloc(json->tokenTotal * sizeof(jsmntok_t));
+	jsmnParseWrapper(json); /*the json.tokenPtr is populated here*/
+
+	/*navigate j to list of calendar events*/
+	if((tokenIndex = nextIndexOf(*json,"value",0)) < 0){
+		fprintf(stderr, "err ln%d: Cannot find list of calendars.\n", __LINE__);
+		exit(EXIT_FAILURE);
+	}
+	tokenIndex++;
+
+	/*loop through each calendar*/
+	for(i = 0; i < eventCount(*json);i++){
+		/*store the calendar id*/
+		sprintf(calendarId, "%.*s", CAL_ID_LENGTH, json->raw + nextTokenOf(*json, "id", tokenIndex).start); 
+
+		/*construct the complete calendarview URL*/
+		fullURL = (char *) malloc(strlen(domain) + strlen(calendarId) + strlen(query) + 1 * sizeof(char));
+		sprintf(fullURL, "%s%s%s", domain, calendarId, query);
+
+		/*display events from given calendar*/
+		eventTotal += displayCalendar(fullURL);
+
+		/*free constructed URL and go to next calendar event*/
+		tokenIndex = navigateToNext(*json,tokenIndex);
+		free(fullURL);
+	}
+
+	printf("Number of events = %d\n", eventTotal);
+
+	/*frees*/
 	free(myHeaders[1]);
 	free(authkey);
 	free(json->raw);

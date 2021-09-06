@@ -9,39 +9,14 @@
 #define NUM_OF_HEADERS 3
 #define CAL_ID_LENGTH 152
 
-/*return today in YYYY-MM-DD format, needs freeing*/
-char *getToday(){
-	char *date;
-	time_t t = time(NULL);
-	struct tm tm = *localtime(&t);
-
-	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
-	sprintf(date, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
-	
-	return date;
-}
-
-/*return tomorrow in YYYY-MM-DD format, needs freeing*/
-char *getTomorrow(){
+/*return today/tomorrow/yesturday etc in YYYY-MM-DD format, needs freeing*/
+char *getDay(int timeAdded){
 	char *date;
 	time_t t = time(NULL);
 	struct tm tm;
 
-	t += 24*60*60;
-	tm = *localtime(&t);
-	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
-	sprintf(date, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
-	
-	return date;
-}
-
-/*return yesturday in YYYY-MM-DD format, needs freeing*/
-char *getYesturday(){
-	char *date;
-	time_t t = time(NULL);
-	struct tm tm;
-
-	t -= 24*60*60;
+	/*add time and return date*/
+	t += timeAdded;
 	tm = *localtime(&t);
 	date = (char *) malloc(strlen("YYYY-MM-DD") + 1 * sizeof(char));
 	sprintf(date, "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
@@ -50,7 +25,7 @@ char *getYesturday(){
 }
 
 /*return provided date in YYYY-MM-DD format, needs freeing*/
-char *getDate(char *argvv){
+char *formatDate(char *argvv){
 	char *date;
 	time_t t = time(NULL);
 	struct tm tm = *localtime(&t);
@@ -71,6 +46,25 @@ char *getDate(char *argvv){
 	return date;
 }
 
+/*get day of week using Sakamoto's Method https://shorturl.at/afyLS */
+int getDOW(char* str){
+	static int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+	char strToInt[5];
+	int d, m, y;
+
+	/*convert to int, only accepts YYYY-MM-DD*/
+	if(strlen(str) != 10)
+		return -1;
+	sprintf(strToInt, "%.4s", str); y = atoi(strToInt);
+	sprintf(strToInt, "%c%c", str[5], str[6]); m = atoi(strToInt);
+	sprintf(strToInt, "%c%c", str[8], str[9]); d = atoi(strToInt);
+
+	/*return 0 = sunday, 1 = monday etc*/
+    if ( m < 3 )
+        y -= 1;
+    return (y + y/4 - y/100 + y/400 + t[m-1] + d) % 7;
+}
+
 /*print the day of the week from ascii.txt.*/
 void printAsciiArt(int dayOfWeek){
 	char *path = "./src/ascii.txt", c;
@@ -81,10 +75,8 @@ void printAsciiArt(int dayOfWeek){
 		fprintf(stderr,"err ln%d: Day of the week does not exist!\n", __LINE__);
 		exit(EXIT_FAILURE);
 	}
-	if(!(fp = fopen(path,"r"))){
-		fprintf(stderr, "err ln %d: Error opening file %s.\n", __LINE__, path);
-		exit(EXIT_FAILURE);
-	}
+	if(!(fp = fopen(path,"r")))
+		return;/*silent if return if file not found*/
 
 	dayOfWeek += 48;/*to ASCII*/
 
@@ -268,7 +260,6 @@ int displayCalendar(char *url, char *headers[NUM_OF_HEADERS], char *authkey){
 		/*print the event description, if there is any*/
 		if(nextTokenOf(*json, "bodyPreview", tokenIndex).start \
 		!= nextTokenOf(*json, "bodyPreview", tokenIndex).end){
-			printf("desc: ");
 			printNext(*json, "bodyPreview", tokenIndex);
 			putchar('\n');
 		}
@@ -313,13 +304,13 @@ int main(int argc, char** argv){
 
 	/*get formatted date*/
 	if(argc < 2 || strncmp("today",argv[1],3) == 0)
-		dateStr = getToday();
+		dateStr = getDay(0);
 	else if(strncmp("tomorrow",argv[1],3) == 0)
-		dateStr = getTomorrow();
+		dateStr = getDay(24*60*60);
 	else if(strncmp("yesturday",argv[1],3) == 0)
-		dateStr = getYesturday();
+		dateStr = getDay(24*60*60*-1);
 	else if(argv[1][0] > 47 && argv[1][0] < 52)/*see ASCII table*/
-		dateStr = getDate(argv[1]);
+		dateStr = formatDate(argv[1]);
 	else if(strcmp("help", argv[1]) == 0)
 		printf("Please see README.md for usage instructions.\n");
 	else{
@@ -369,7 +360,7 @@ int main(int argc, char** argv){
 	tokenIndex++;
 
 	/*print day of the week*/
-	printAsciiArt(0);
+	printAsciiArt(getDOW(dateStr));
 
 	/*loop through each calendar*/
 	for(i = 0; i < eventCount(*json);i++){
@@ -388,7 +379,10 @@ int main(int argc, char** argv){
 		free(eventURL);
 	}
 
-	printf("Found %d total events.\n", eventTotal);
+	if(eventTotal == 0)
+		printf("This day has no events, enjoy the freedom!\n");
+	else
+		printf("Found %d total events.\n", eventTotal);
 
 	/*frees*/
 	free(query);

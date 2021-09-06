@@ -1,6 +1,4 @@
 # Console Calendar
-:warning: __very unfinished and W.I.P!__ :warning:
-
 A terminal application that displays the Microsoft Calendar events for a given day.
 
 ## Current Progress
@@ -8,22 +6,49 @@ The `sendhttps` header file is complete. This uses [libcurl4-gnutls-dev (ver: 7.
 
 The `Makefile` is implemented to download `jsmn.h`, compile and run.
 
-The `main` file uses the [JSMN parser](https://github.com/zserge/jsmn) and prints out calendar events from all available calendarviews. It takes 1 argument for "today"/"tomorrow"/"yesturday". If no argument is supplied then it will print today's events. Here is an example output:
+The `main` file uses the [JSMN parser](https://github.com/zserge/jsmn) and prints out calendar events from all available calendarviews. It takes 1 argument for "today"/"tomorrow"/"yesturday". If no argument is supplied then it will print today's events. 
+
+Example output
 ```
-   All Day
+$ ./a.out 05/10
+░░░░░░░░░░░████████╗██╗░░░██╗███████╗░██████╗██████╗░░█████╗░██╗░░░██╗░░░░░░░░░░
+░░░░░░░░░░░╚══██╔══╝██║░░░██║██╔════╝██╔════╝██╔══██╗██╔══██╗╚██╗░██╔╝░░░░░░░░░░
+░░░░░░░░░░░░░░██║░░░██║░░░██║█████╗░░╚█████╗░██║░░██║███████║░╚████╔╝░░░░░░░░░░░
+░░░░░░░░░░░░░░██║░░░██║░░░██║██╔══╝░░░╚═══██╗██║░░██║██╔══██║░░╚██╔╝░░░░░░░░░░░░
+░░░░░░░░░░░░░░██║░░░╚██████╔╝███████╗██████╔╝██████╔╝██║░░██║░░░██║░░░░░░░░░░░░░
+░░░░░░░░░░░░░░╚═╝░░░░╚═════╝░╚══════╝╚═════╝░╚═════╝░╚═╝░░╚═╝░░░╚═╝░░░░░░░░░░░░░
+10:00 - 11:00
 =============
-Mid-term Holiday
+Software Engineering Group Project - Online Lecture Engagement
+Taught By: De Maere G D
+Module code:
+Last Updated: 06/09/2021 07:44
 
-21:00 - 22:00
+12:00 - 13:00
 =============
-Cocktail mixo
-desc: meet with the group and bring stuff to make espresso martinis
+Operating Systems & Concurrency - Lecture
+Taught By: Turner A Dr, De Maere G Dr
+Module code: COMP/2007/01
+Last Updated: 06/09/2021 07:44
 
-Showing 2 total events.
+14:00 - 16:00
+=============
+Developing Maintainable Software - Lecture
+Taught By: Laramee R Dr, Siebers P Dr
+Module code: COMP/2013/01
+Last Updated: 06/09/2021 07:44
+
+17:00 - 18:00
+=============
+Algorithms Correctness and Efficiency - Lecture Engagement
+Taught By: Knight, I
+Module code:
+Last Updated: 06/09/2021 07:44
+
+Found 4 total events.
 ```
 
 ## To Do
-1. Allow user to supply arguments to specify which specific date to show.
 1. Get the authkey automatically. (register with OAuth?)
 1. Make the display look better, maybe add colour.
 

@@ -163,6 +163,32 @@ void printNext(JsonWrapper json, char *searchKey, int objToken){
 	printf("%.*s", token.end - token.start, json.raw + token.start);
 }
 
+/*same as printNext but parses escape characters*/
+void printNextE(JsonWrapper json, char *searchKey, int objToken){
+	jsmntok_t token = nextTokenOf(json, searchKey, objToken);
+	char *str, *strStart;
+	int size = token.end - token.start;
+
+	str = (char *) malloc(size + 1 * sizeof(char));
+	sprintf(str, "%.*s", size, json.raw + token.start);
+	strStart = str;
+
+	/*convert '\r\n's to their actual escape sequences, also squash two newlines into one*/
+	while(*str != '\0'){
+		if((strncmp(str, "\\r\\n\\r\\n", 8) == 0)){
+			memset(str, ' ', 7);
+			*(str+7) = '\n';
+		}
+		else if(strncmp(str, "\\r\\n", 4) == 0){
+			memset(str, ' ', 3);
+			*(str+3) = '\n';
+		}
+		putchar(*str);
+		str++;
+	}
+	free(strStart);
+}
+
 /*given a key and an object token, print part of the value*/
 void printNextn(JsonWrapper json, char *searchKey, int objToken, int size, int start){
 	printf("%.*s", size, json.raw + nextTokenOf(json, searchKey, objToken).start + start); 
@@ -260,7 +286,7 @@ int displayCalendar(char *url, char *headers[NUM_OF_HEADERS], char *authkey){
 		/*print the event description, if there is any*/
 		if(nextTokenOf(*json, "bodyPreview", tokenIndex).start \
 		!= nextTokenOf(*json, "bodyPreview", tokenIndex).end){
-			printNext(*json, "bodyPreview", tokenIndex);
+			printNextE(*json, "bodyPreview", tokenIndex);
 			putchar('\n');
 		}
 

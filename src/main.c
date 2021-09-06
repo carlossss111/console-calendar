@@ -6,8 +6,29 @@
 #include "sendhttps.h"
 #include "jsmn.h"
 
-#define NUM_OF_HEADERS 3
-#define CAL_ID_LENGTH 152
+/*sizes*/
+#define NUM_OF_HEADERS 3 /*number of http headers*/
+#define CAL_ID_LENGTH 152 /*char size of calendar IDs*/
+#define HEADING_WIDTH 80 /*char size of one row of headings in ascii.txt, =0 if you don't want the date centered*/
+
+/*colour code macros*/
+#define startBold() printf("\033[1m")
+#define endBold() printf("\033[0m")
+
+/*
+* Choose whether the heading is bold and brighter (0 = no, 1 = yes)
+* Choose between heading colours by uncommenting the desired line (and recommenting the original).
+*/
+   #define isHeadingBold 1
+/* #define headingColor() printf("\033[0m") */                       /* default*/
+/* #define headingColor() printf("\033[%d;30m",isHeadingBold)   */   /* black  */
+/* #define headingColor() printf("\033[%d;31m",isHeadingBold)   */   /* red    */
+   #define headingColor() printf("\033[%d;32m",isHeadingBold)        /* green  */
+/* #define headingColor() printf("\033[%d;33m",isHeadingBold)   */   /* yellow */
+/* #define headingColor() printf("\033[%d;34m",isHeadingBold)   */   /* blue   */
+/* #define headingColor() printf("\033[%d;35m",isHeadingBold)   */   /* purple */
+/* #define headingColor() printf("\033[%d;36m",isHeadingBold)   */   /* cyan   */
+/* #define headingColor() printf("\033[%d;37m",isHeadingBold)   */   /* white  */
 
 /*return today/tomorrow/yesturday etc in YYYY-MM-DD format, needs freeing*/
 char *getDay(int timeAdded){
@@ -263,7 +284,7 @@ int displayCalendar(char *url, char *headers[NUM_OF_HEADERS], char *authkey){
 		/*
 		* print a calendar event
 		*/
-
+		startBold();
 		if(jsoneq(json->raw, nextTokenOf(*json, "isAllDay", tokenIndex),"true"))
 			printf("   All Day");
 		else{
@@ -282,6 +303,7 @@ int displayCalendar(char *url, char *headers[NUM_OF_HEADERS], char *authkey){
 		printf("=============\n");
 		printNext(*json, "subject", tokenIndex);
 		putchar('\n');
+		endBold();
 
 		/*print the event description, if there is any*/
 		if(nextTokenOf(*json, "bodyPreview", tokenIndex).start \
@@ -386,7 +408,13 @@ int main(int argc, char** argv){
 	tokenIndex++;
 
 	/*print day of the week*/
+	headingColor();
 	printAsciiArt(getDOW(dateStr));
+	for(i = 0; i < (HEADING_WIDTH/2)-9; i++)
+		putchar(' ');
+	startBold();
+	printf("~ ~ %c%c/%c%c/%.4s ~ ~\n",  dateStr[8], dateStr[9], dateStr[5], dateStr[6], dateStr);
+	endBold();
 
 	/*loop through each calendar*/
 	for(i = 0; i < eventCount(*json);i++){

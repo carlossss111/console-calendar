@@ -71,6 +71,37 @@ char *getDate(char *argvv){
 	return date;
 }
 
+/*print the day of the week from ascii.txt.*/
+void printAsciiArt(int dayOfWeek){
+	char *path = "./src/ascii.txt", c;
+	FILE *fp;
+
+	/*validation and file opening*/
+	if(dayOfWeek < 0 || dayOfWeek > 6){
+		fprintf(stderr,"err ln%d: Day of the week does not exist!\n", __LINE__);
+		exit(EXIT_FAILURE);
+	}
+	if(!(fp = fopen(path,"r"))){
+		fprintf(stderr, "err ln %d: Error opening file %s.\n", __LINE__, path);
+		exit(EXIT_FAILURE);
+	}
+
+	dayOfWeek += 48;/*to ASCII*/
+
+	/*find correct part of the file*/
+	do{
+		c = fgetc(fp);
+	}while(c != dayOfWeek && c != EOF);
+	fgetc(fp); c = fgetc(fp);
+
+	/*print day of week*/
+	while(c != dayOfWeek+1 && c != EOF){
+		putchar(c);
+		c = fgetc(fp);
+	}
+	fclose(fp);
+}
+
 /*structure for grouping JSON properties*/
 typedef struct JsonWrapper{
 		char *raw;
@@ -336,6 +367,9 @@ int main(int argc, char** argv){
 		exit(EXIT_FAILURE);
 	}
 	tokenIndex++;
+
+	/*print day of the week*/
+	printAsciiArt(0);
 
 	/*loop through each calendar*/
 	for(i = 0; i < eventCount(*json);i++){

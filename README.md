@@ -17,6 +17,8 @@ $ ./a.out 05/10
 ░░░░░░░░░░░░░░██║░░░██║░░░██║██╔══╝░░░╚═══██╗██║░░██║██╔══██║░░╚██╔╝░░░░░░░░░░░░
 ░░░░░░░░░░░░░░██║░░░╚██████╔╝███████╗██████╔╝██████╔╝██║░░██║░░░██║░░░░░░░░░░░░░
 ░░░░░░░░░░░░░░╚═╝░░░░╚═════╝░╚══════╝╚═════╝░╚═════╝░╚═╝░░╚═╝░░░╚═╝░░░░░░░░░░░░░
+                               ~ ~ 05/10/2021 ~ ~
+
 10:00 - 11:00
 =============
 Software Engineering Group Project - Online Lecture Engagement
@@ -49,7 +51,7 @@ Found 4 total events.
 ```
 
 ## To Do
-1. Get the authkey automatically. (register with OAuth?)
-1. Make the display look better, maybe add colour.
+1. Write installation instructions and finish readme
+1. Test test test for bugs
 
-_Readme correct as of 04/09/21._
+_Readme correct as of 07/09/21._

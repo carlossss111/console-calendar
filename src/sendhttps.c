@@ -41,7 +41,7 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 /* Send HTTP request
 * (value returned requires freeing)
 */
-char* httpsGET(char* myURL, int numOfMyHeaders, char* myHeaders[])
+char* httpsRequest(char* myURL, int numOfMyHeaders, char* myHeaders[], char* payload)
 {
 	CURL *curl;
 	CURLcode res;
@@ -65,6 +65,10 @@ char* httpsGET(char* myURL, int numOfMyHeaders, char* myHeaders[])
 
 	/*specify URL*/
 	curl_easy_setopt(curl, CURLOPT_URL, myURL);
+
+	/*specify POST payload if there is any, otherwise it is GET request*/
+	if(strlen("") != strlen(payload))
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
 
 	#ifdef DEBUG
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
@@ -92,7 +96,7 @@ char* httpsGET(char* myURL, int numOfMyHeaders, char* myHeaders[])
 	return response.memory;
 }
 
-/*Reads the "authkey.txt" file.
+/*Reads the "refreshkey.txt" file.
 * (returned string needs freeing)
 */
 char* readKey(char* path){

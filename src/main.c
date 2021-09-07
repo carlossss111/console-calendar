@@ -11,6 +11,10 @@
 #define CAL_ID_LENGTH 152 /*char size of calendar IDs*/
 #define HEADING_WIDTH 80 /*char size of one row of headings in ascii.txt, =0 if you don't want the date centered*/
 
+/*additional constants needed for the authkey request*/
+#define SCOPE "calendars.read%20calendars.read.shared%20user.read%20calendars.readwrite%20calendars.readwrite.shared"
+#define GRANT_TYPE "refresh_token"
+
 /*colour code macros*/
 #define startBold() printf("\033[1m")
 #define endBold() printf("\033[0m")
@@ -29,6 +33,55 @@
 /* #define headingColor() printf("\033[%d;35m",isHeadingBold)   */   /* purple */
 /* #define headingColor() printf("\033[%d;36m",isHeadingBold)   */   /* cyan   */
 /* #define headingColor() printf("\033[%d;37m",isHeadingBold)   */   /* white  */
+
+/*return the config value searched for*/
+/*needs freeing*/
+char *getConfig(char *search){
+	char *path = "./config.txt", c, *result;
+	int i = 0, found = 0;
+	long offset;
+	FILE *fp;
+
+	/*open file*/
+	if(!(fp = fopen(path,"r"))){
+		fprintf(stderr, "err ln%d: The config file cannot be opened/read.\n", __LINE__);
+		exit(EXIT_FAILURE);
+	}
+
+	/*search file for the search token*/
+	c = fgetc(fp);
+	while(c != EOF){
+		if(c == search[i])
+			i++;
+		else
+			i = 0;
+		if(i == strlen(search)){
+			found = 1;
+			break;
+		}
+		c = fgetc(fp);
+	}
+	if(!found)
+		return "";
+
+	/*hetween the quotemarks, load into memory*/
+	while(c != '\"' && c != EOF)
+		c = fgetc(fp);
+	offset = ftell(fp);
+	c = fgetc(fp);
+	i = 0;
+	while(c != '\"' && c != EOF){
+		i++;
+		c = fgetc(fp);
+	}
+	fseek(fp, offset, SEEK_SET);
+	result = (char *) malloc(i + 1 * sizeof(char));
+	fread(result, sizeof(char), i, fp);
+	*(result + i) = '\0';
+	fclose(fp);
+
+	return result;
+}
 
 /*return today/tomorrow/yesturday etc in YYYY-MM-DD format, needs freeing*/
 char *getDay(int timeAdded){
@@ -240,6 +293,33 @@ int navigateToNext(JsonWrapper json, int index){
 	return index;
 }
 
+/*parse the JSON authkey response and return the key only*/
+char *parseAuth(char *authResponse){
+	char *authKey;
+	JsonWrapper *json;
+	jsmntok_t authToken;
+	json = malloc(sizeof(JsonWrapper));
+	json->raw = authResponse;
+	json->tokenTotal = -1;
+	json->tokenPtr = NULL;
+
+	/*get number of tokens and allocate memory etc*/
+	jsmnParseWrapper(json);
+	json->tokenPtr = malloc(json->tokenTotal * sizeof(jsmntok_t));
+	jsmnParseWrapper(json);
+
+	/*navigate to access token and return it*/
+	authToken = nextTokenOf(*json, "access_token", 0);
+	authKey = (char *) malloc((authToken.end - authToken.start) + 1 * sizeof(char));
+	sprintf(authKey, "%.*s", authToken.end - authToken.start, json->raw + authToken.start);
+
+	/*frees*/
+	free(json->tokenPtr);
+	free(json);
+	free(authResponse);
+	return authKey;
+}
+
 /*
 * Parses a given microsoft calendar,
 * displays the events, descriptions and times,
@@ -329,16 +409,17 @@ int displayCalendar(char *url, char *headers[NUM_OF_HEADERS], char *authkey){
 }
 
 int main(int argc, char** argv){
-	/*for networking*/
-	char *myResponse, *myHeaders[NUM_OF_HEADERS], *authkey, calendarId[CAL_ID_LENGTH+1];
+	/*for calendar requests and auth requests*/
+	char *myResponse, *myHeaders[NUM_OF_HEADERS], calendarId[CAL_ID_LENGTH+1];
 	char *listCalendarsURL = "https://graph.microsoft.com/v1.0/me/calendars";
+	char *authKey, *refreshKey, *authPayload, *clientId, *redirectUri;
+	char *authKeyURL = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token";
 
 	char *domain = "https://graph.microsoft.com/v1.0/me/calendars/";
 	char *queryPt1 = "/calendarview/?startdatetime=";
 	char *queryPt2 = "T00:00:00.000Z&enddatetime=";
 	char *queryPt3 = "T23:59:59.999Z";
 	char *dateStr, *query, *eventURL;
-
 	int eventTotal = 0;
 
 	/*for json parsing*/
@@ -371,16 +452,41 @@ int main(int argc, char** argv){
 	 + strlen(dateStr) + strlen(queryPt3) + 1 * sizeof(char));
 	sprintf(query, "%s%s%s%s%s", queryPt1, dateStr, queryPt2, dateStr, queryPt3);
 	
-	/*get key from file*/
-	authkey = readKey("authkey.txt");
+	/*
+	* Code must first be obtained from URL once every 90 days.
+	* Code then used to obtain refresh-key which should be put into refreshkey.txt manually
+	* Refresh key is used (for it's 90 day lifetime) to obtain authkeys below.
+	*/
+	/*get refresh key*/
+	refreshKey = readKey("refreshkey.txt");
+
+	/*specify headers*/
+	myHeaders[0] = "Hostname: login.microsoftonline.com";
+	myHeaders[1] = "Content-Type: application/x-www-form-urlencoded";
+
+	/*read configuration file for the clientID and redirectURI*/
+	clientId = getConfig("client_id");
+	redirectUri = getConfig("redirect_uri");
+
+	/*load the refresh key and the other configs into the http payload*/
+	authPayload = (char *) malloc(strlen("client_id=") + strlen(clientId)\
+	+ strlen("&scope=") + strlen(SCOPE)\
+	+ strlen("&refresh_token=") + strlen(refreshKey)\
+	+ strlen("&redirect_uri=") + strlen(redirectUri)\
+	+ strlen("&grant_type=") + strlen(GRANT_TYPE) + 1 * sizeof(char));
+	sprintf(authPayload, "client_id=%s&scope=%s&refresh_token=%s&redirect_uri=%s&grant_type=%s"\
+	, clientId, SCOPE, refreshKey, redirectUri, GRANT_TYPE);
+
+	/*make a POST request for the authkey*/
+	authKey = parseAuth( httpsPOST(authKeyURL, 2, myHeaders, authPayload) );
 
 	/*specify headers*/
 	myHeaders[0] = "Host: graph.microsoft.com";
-	myHeaders[1] = (char *) malloc(strlen("Authorization: ") + strlen(authkey) + 1 * sizeof(char));
-	sprintf(myHeaders[1],"Authorization: %s",authkey);
-	myHeaders[2] = "Prefer: outlook.timezone=\"Europe/London\"";
+	myHeaders[1] = "Prefer: outlook.timezone=\"Europe/London\"";
+	myHeaders[2] = (char *) malloc(strlen("Authorization: ") + strlen(authKey) + 1 * sizeof(char));
+	sprintf(myHeaders[2],"Authorization: %s",authKey);
 
-	/*get list of calendars*/
+	/*GET list of calendars*/
 	myResponse = httpsGET(listCalendarsURL, NUM_OF_HEADERS, myHeaders);
 	#ifdef DEBUG
 	printf("RAW_RESPONSE: %s\n",myResponse);
@@ -426,7 +532,7 @@ int main(int argc, char** argv){
 		sprintf(eventURL, "%s%s%s", domain, calendarId, query);
 
 		/*display events from given calendar and add to the total*/
-		eventTotal += displayCalendar(eventURL, myHeaders, authkey);
+		eventTotal += displayCalendar(eventURL, myHeaders, authKey);
 
 		/*free constructed URL and go to next calendar event*/
 		tokenIndex = navigateToNext(*json,tokenIndex);
@@ -439,12 +545,11 @@ int main(int argc, char** argv){
 		printf("Found %d total events.\n", eventTotal);
 
 	/*frees*/
-	free(query);
-	free(dateStr);
-	free(myHeaders[1]);
-	free(authkey);
-	free(json->raw);
-	free(json->tokenPtr);
+	free(clientId);    free(redirectUri);
+	free(authPayload); free(refreshKey);
+	free(authKey);     free(query);
+	free(dateStr);     free(myHeaders[2]);
+	free(json->raw);   free(json->tokenPtr);
 	free(json);
 
 	return 0;

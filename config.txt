@@ -1,0 +1,2 @@
+client_id = "CLIENT ID HERE"
+redirect_uri = "REDIRECT URI HERE"

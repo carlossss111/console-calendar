@@ -9,7 +9,8 @@
 src/jsmn.h
 
 #keys
-authkey.txt
+config.txt
+refreshkey.txt
 
 #misc
 exampleoutput.txt

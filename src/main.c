@@ -19,6 +19,11 @@
 #define startBold() printf("\033[1m")
 #define endBold() printf("\033[0m")
 
+/*absolute file position*/
+#define CONFIG_TXT "/usr/local/bin/consolecal_data/config.txt"
+#define ASCII_TXT "/usr/local/bin/consolecal_data/ascii.txt"
+#define REFRESHKEY_TXT "/usr/local/bin/consolecal_data/refreshkey.txt"
+
 /*
 * Choose whether the heading is bold and brighter (0 = no, 1 = yes)
 * Choose between heading colours by uncommenting the desired line (and recommenting the original).
@@ -37,7 +42,7 @@
 /*return the config value searched for*/
 /*needs freeing*/
 char *getConfig(char *search){
-	char *path = "./config.txt", c, *result;
+	char *path = CONFIG_TXT, c, *result;
 	int i = 0, found = 0;
 	long offset;
 	FILE *fp;
@@ -110,7 +115,7 @@ char *formatDate(char *argvv){
 	  argvv[2] != '/' ||\
 	  argvv[3] < 48   || argvv[3] > 49 ||\
 	  argvv[4] < 48   || argvv[4] > 57  ){
-		printf("Argument for date is garbled. Should formatted like './consolecal DD/MM'\n");
+		printf("Argument for date is garbled. Should formatted like 'consolecal DD/MM'\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -141,7 +146,7 @@ int getDOW(char* str){
 
 /*print the day of the week from ascii.txt.*/
 void printAsciiArt(int dayOfWeek){
-	char *path = "./src/ascii.txt", c;
+	char *path = ASCII_TXT, c;
 	FILE *fp;
 
 	/*validation and file opening*/
@@ -458,7 +463,7 @@ int main(int argc, char** argv){
 	* Refresh key is used (for it's 90 day lifetime) to obtain authkeys below.
 	*/
 	/*get refresh key*/
-	refreshKey = readKey("refreshkey.txt");
+	refreshKey = readKey(REFRESHKEY_TXT);
 
 	/*specify headers*/
 	myHeaders[0] = "Hostname: login.microsoftonline.com";

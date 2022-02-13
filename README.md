@@ -78,29 +78,7 @@ _Note: If you are at my university I can probably give you my id etc and you can
 ### Getting a Refresh Key
 _Note: Unfortunately the refresh key only lasts 90 days so this step will need to be taken again after that time._
 
-1. Once the application is registered, enter this into any web browser to get a microsoft code (line breaks added for readability):
-```
-https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?
-client_id={your client id}
-&response_type=code
-&redirect_uri={your redirect uri}
-&response_mode=query
-&scope=offline_access%20calendars.read%20calendars.read.shared%20user.read%20calendars.readwrite%20calendars.readwrite.shared
-&state=12121
-```
-2. You should be prompted with a Microsoft login. After entering your details you will be redirected to a blank page. In the URL bar the new URL will have "code={copy this}", copy the code.
-1. Make a POST request with a program like cURL with the following details (line breaks added for readability):
-```
-$curl -H 
-"Hostname: https://login.microsoftonline.com" 
--H "Content-Type: application/x-www-form-urlencoded" 
--d "client_id={your client id}
-&scope=offline_access%20calendars.read%20calendars.read.shared%20user.read%20calendars.readwrite%20calendars.readwrite.shared
-&code={the code you just copied}
-&redirect_uri={your redirect uri}" 
--X POST "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
-```
-1. Copy the resulting "refresh_token" and paste it in it's entirety in refreshkey.txt with a text editor. Do **not** include any quote marks or literally anything besides the value itself (it will be a very long string of random characters).
+Run the `refresh.sh` script and follow the instructions. This will request a refresh key for you and will pipe it into refreshkey.txt.
 
 (If there were any issues consult [the Microsoft guide](https://docs.microsoft.com/en-us/graph/auth-v2-user)).
 
@@ -139,9 +117,8 @@ The `main` file uses the [JSMN parser](https://github.com/zserge/jsmn) and print
 ## To do
 * Take day-of-the-week words like 'tuesday' as valid inputs.
 * Sort events by time when coming from different calendars (will require some refactoring).
-* Make the installation process easier if I feel like it or anyone asks.
 
-_Readme correct as of 14/09/21._
+_Readme correct as of 13/02/22._
 
 ### My comments be like:
 
